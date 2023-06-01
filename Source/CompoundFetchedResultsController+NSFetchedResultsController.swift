@@ -30,6 +30,11 @@ extension CompoundFetchedResultsController: NSFetchedResultsControllerDelegate {
 		delegate?.controllerDidChangeContent?(self)
 	}
 
+	@available(iOS 13.0, *)
+	public func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChangeContentWith snapshot: NSDiffableDataSourceSnapshotReference) {
+		delegate?.controller?(controller, didChangeContentWith: snapshot)
+	}
+
 	public func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, sectionIndexTitleForSectionName sectionName: String) -> String? {
 		return delegate?.controller?(self, sectionIndexTitleForSectionName: sectionName)
 	}

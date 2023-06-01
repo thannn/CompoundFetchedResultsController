@@ -72,6 +72,12 @@
 #pragma mark - NSFetchedResultsController overrides
 
 - (BOOL)performFetch:(NSError * _Nullable __autoreleasing *)error {
+	if ([self.delegate respondsToSelector:@selector(controller:didChangeContentWithSnapshot:)]) {
+		NSDiffableDataSourceSnapshot<NSString *, id> *snapshot = [[NSDiffableDataSourceSnapshot alloc] init];
+		[snapshot appendSectionsWithIdentifiers:@[self.sectionTitle]];
+		[snapshot appendItemsWithIdentifiers:self.items intoSectionWithIdentifier:self.sectionTitle];
+		[self.delegate controller:self didChangeContentWithSnapshot:snapshot];
+	}
 	return true;
 }
 
