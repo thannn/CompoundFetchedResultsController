@@ -12,7 +12,8 @@ import UIKit
 public final class DiffableCompoundFetchedResultsController: NSFetchedResultsController<NSFetchRequestResult>, NSFetchedResultsControllerDelegate {
 	// MARK: - Types
 
-	public typealias DiffableCompoundSection = (sectionIdentifier: String, sectionController: NSFetchedResultsController<NSFetchRequestResult>)
+	public typealias DiffableCompoundSectionID = String
+	public typealias DiffableCompoundSection = (sectionIdentifier: DiffableCompoundSectionID, sectionController: NSFetchedResultsController<NSFetchRequestResult>)
 
 	// MARK: - Properties
 
@@ -22,7 +23,7 @@ public final class DiffableCompoundFetchedResultsController: NSFetchedResultsCon
 	public override var sectionNameKeyPath: String? { nil }
 
 	private let compoundSections: [DiffableCompoundSection]
-	private var snapshot: NSDiffableDataSourceSnapshotReference = .init()
+	private var compoundSnapshots: [DiffableCompoundSectionID: NSDiffableDataSourceSnapshotReference] = [:] // `NSDiffableDataSourceSnapshotReference` type needed in `NSFetchedResultsControllerDelegate`
 	private var controllers: [NSFetchedResultsController<NSFetchRequestResult>] {
 		compoundSections.map { $0.sectionController }
 	}
@@ -72,33 +73,27 @@ public final class DiffableCompoundFetchedResultsController: NSFetchedResultsCon
 	}
 
 	public func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChangeContentWith snapshot: NSDiffableDataSourceSnapshotReference) {
-		var modifiedSnapshot: NSDiffableDataSourceSnapshotReference = .init()
-		compoundSections.forEach { (sectionIdentifier: String, sectionController: NSFetchedResultsController<NSFetchRequestResult>) in
-			if sectionController == controller {
-				snapshot.sectionIdentifiers.forEach {
-					modifiedSnapshot.appendSections(withIdentifiers: [sectionIdentifier])
-					modifiedSnapshot.appendItems(withIdentifiers: snapshot.itemIdentifiersInSection(withIdentifier: $0), intoSectionWithIdentifier: sectionIdentifier)
-				}
-			} else {
-				modifiedSnapshot.appendSections(withIdentifiers: [sectionIdentifier])
-				if self.snapshot.hasSection(withSectionIdentifier: sectionIdentifier) {
-					modifiedSnapshot.appendItems(withIdentifiers: self.snapshot.itemIdentifiersInSection(withIdentifier: sectionIdentifier), intoSectionWithIdentifier: sectionIdentifier)
-				}
-			}
-		}
-
-		self.snapshot = modifiedSnapshot
-		delegate?.controller?(self, didChangeContentWith: self.snapshot)
+		guard let sectionIdentifier = compoundSections.first(where: { $0.sectionController === controller })?.sectionIdentifier else { return }
+		var sectionSnapshot: NSDiffableDataSourceSnapshotReference = .init()
+		sectionSnapshot.appendSections(withIdentifiers: [sectionIdentifier])
+		sectionSnapshot.appendItems(withIdentifiers: snapshot.itemIdentifiers, intoSectionWithIdentifier: sectionIdentifier)
+		compoundSnapshots[sectionIdentifier] = sectionSnapshot
+		sortSnapshotsAndNotifyDelegate()
 	}
 
 	public func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
 		delegate?.controllerDidChangeContent?(self)
 	}
-}
 
-@available(iOS 13.0, *)
-private extension NSDiffableDataSourceSnapshotReference {
-	func hasSection(withSectionIdentifier sectionIdentifier: Any) -> Bool {
-		index(ofSectionIdentifier: sectionIdentifier) != NSNotFound
+	// MARK: - Helpers
+
+	private func sortSnapshotsAndNotifyDelegate() {
+		let sortedSnapshots = compoundSnapshots.sorted { lhs, rhs in
+			guard let lhsIndex = compoundSections.firstIndex(where: { $0.sectionIdentifier == lhs.key }) else { return true }
+			guard let rhsIndex = compoundSections.firstIndex(where: { $0.sectionIdentifier == rhs.key }) else { return true }
+			return lhsIndex < rhsIndex
+		}
+		// not merging the snapshots in 1 single snapshot, as it would disable the possilibity for the same item to occur in different sections
+		sortedSnapshots.forEach { delegate?.controller?(self, didChangeContentWith: $0.value) }
 	}
 }
