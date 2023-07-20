@@ -19,7 +19,7 @@ public final class DiffableCompoundFetchedResultsController: NSFetchedResultsCon
 
 	public override var cacheName: String? { nil }
 	public override var fetchRequest: NSFetchRequest<NSFetchRequestResult> { .init() }
-	public override var managedObjectContext: NSManagedObjectContext { compoundSections.first!.sectionController.managedObjectContext }
+	public override var managedObjectContext: NSManagedObjectContext { .init(concurrencyType: .mainQueueConcurrencyType) }
 	public override var sectionNameKeyPath: String? { nil }
 
 	private let compoundSections: [DiffableCompoundSection]
@@ -94,6 +94,10 @@ public final class DiffableCompoundFetchedResultsController: NSFetchedResultsCon
 			return lhsIndex < rhsIndex
 		}
 		// not merging the snapshots in 1 single snapshot, as it would disable the possilibity for the same item to occur in different sections
-		sortedSnapshots.forEach { delegate?.controller?(self, didChangeContentWith: $0.value) }
+		sortedSnapshots.forEach { compoundSnapshot in
+			if let compoundSection = compoundSections.first(where: { $0.sectionIdentifier == compoundSnapshot.key }) {
+				delegate?.controller?(compoundSection.sectionController, didChangeContentWith: compoundSnapshot.value)
+			}
+		}
 	}
 }
